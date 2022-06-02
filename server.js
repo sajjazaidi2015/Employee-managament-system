@@ -1,23 +1,10 @@
 const inquirer = require("inquirer");
 
-// Import and require mysql2
+const svc = require("./utils/service");
 
-const mysql = require("mysql2");
-
-const connection = () => {
-  const db = mysql.createConnection(
-    {
-      host: "localhost",
-      // MySQL username,
-      user: "root",
-      // MySQL password
-      password: "Sajjad90*",
-      database: "employee_management_db",
-    },
-    console.log(`Connected to the employee_management_db database.`)
-  );
-  return db;
-};
+function getFullName(e) {
+  return `${e.FirstName} ${e.LastName}`;
+}
 
 const basicQuestions = () => {
   inquirer
@@ -40,7 +27,7 @@ const basicQuestions = () => {
         },
       ])
     )
-    .then((answers) => {
+    .then(async (answers) => {
       switch (answers.employeeManagementSystem) {
         case "View All Employee":
           viewEmployee();
@@ -57,7 +44,7 @@ const basicQuestions = () => {
           basicQuestions();
           break;
         case "Add Role":
-          addRoles();
+          await addRoles();
           break;
         case "View All Department":
           viewDepartment();
@@ -82,40 +69,190 @@ const basicQuestions = () => {
 
 // View all Departments
 function viewDepartment() {
-  connection().query("SELECT * FROM department", function (err, results) {
-    if (err) throw err;
-    console.clear();
-    console.table(results);
-  });
+  svc
+    .getAllDepartments()
+    .then((results) => {
+      console.clear();
+      console.table(results);
+    })
+    .catch((err) => {
+      throw err;
+    });
 }
+
 // View all Roles
 function viewRoles() {
-    connection().query(`SELECT roleId, title, salary, department.name from role
-    JOIN department ON department.depart_id = role.department_id;
-    `, function (err, results) {
-        if (err) throw err;
-        console.clear();
-        console.table(results);
-    });    
+  svc
+    .getAllRoles()
+    .then((results) => {
+      console.clear();
+      console.table(results);
+    })
+    .catch((err) => {
+      throw err;
+    });
 }
+
 // View all Employees
 function viewEmployee() {
-    connection().query(`SELECT
-    employee.first_name as FirstName,
-    employee.last_name as LastName,
-    role.title as Title,
-    role.salary as Salary,
-    department.name as Department,
-    CONCAT(manager.first_name, " " ,manager.last_name) as Manager
-    FROM
-    employee
-    JOIN role ON employee.role_id = role.roleId
-    JOIN department ON role.department_id = department.depart_id
-    LEFT OUTER JOIN employee manager on manager.empId = employee.manager_id
-    `, function (err, results) {
-        if (err) throw err;
-        console.clear();
-        console.table(results);
-    });    
+  // use the function of get all employees
+  svc
+    .getAllEmployee()
+    .then((results) => {
+      console.clear();
+      console.table(results);
+    })
+    .catch((err) => {
+      throw err;
+    });
 }
+// Add the Department
+function addDepartment() {
+  inquirer
+    .prompt([
+      /* Pass your questions in here */
+      {
+        type: "input",
+        message: "What is the name of your department?",
+        name: "name",
+      },
+    ])
+    .then((answers) => {
+      // Use user feedback for... whatever!!
+      svc.addDepartment(answers.name, basicQuestions);
+    });
+}
+
+// Add Role
+async function addRoles() {
+  const departments = await svc.getAllDepartments();
+  inquirer
+    .prompt([
+      /* Pass your questions in here */
+      {
+        type: "input",
+        message: "What is the title of your new role?",
+        name: "titleRole",
+      },
+      {
+        type: "input",
+        message: "What is the salary of your new role?",
+        name: "salary",
+      },
+      {
+        type: "list",
+        message: "What is the Department of your new role?",
+        name: "department",
+        choices: () => departments.map((d) => d.name),
+      },
+    ])
+    .then((answers) => {
+      const department = departments.find(
+        (d) => d.name.toLowerCase() === answers.department.toLowerCase()
+      );
+      // Use user feedback for... whatever!!
+      svc.addRole(
+        answers.titleRole,
+        answers.salary,
+        department.depart_id,
+        basicQuestions
+      );
+    });
+}
+
+// Add employee
+async function addEmployee() {
+  const roles = await svc.getAllRoles();
+  const employees = await svc.getAllEmployee();
+  inquirer
+    .prompt([
+      /* Pass your questions in here */
+      {
+        type: "input",
+        message: "What is the First name of the employee?",
+        name: "firstName",
+      },
+      {
+        type: "input",
+        message: "What is the Last name of the employee?",
+        name: "lastName",
+      },
+      {
+        type: "list",
+        message: "What is the role of your new employee?",
+        name: "role",
+        choices: () => roles.map((d) => d.title),
+      },
+      {
+        type: "list",
+        message: "Who is the Manager of the employee?",
+        name: "managerName",
+        choices: () => ["None", ...employees.map((e) => getFullName(e))],
+      },
+    ])
+    .then((answers) => {
+      const role = roles.find(
+        (d) => d.title.toLowerCase() === answers.role.toLowerCase()
+      );
+      const employee = employees.find((d) => {
+        const name = getFullName(d);
+        return name.toLowerCase() === answers.managerName.toLowerCase();
+      });
+
+      // Use user feedback for... whatever!!
+      addEmployee(
+        answers.firstName,
+        answers.lastName,
+        role.roleId,
+        answers.managerName === "None" ? null : employee.empId,
+        basicQuestions
+      );
+    });
+}
+
+async function updateEmployeeRole() {
+    const roles = await svc.getAllRoles();
+    const employees = await svc.getAllEmployee();
+  inquirer
+    .prompt([
+      /* Pass your questions in here */
+      {
+        type: "list",
+        message: "Select an employee who's role needs to be updated?",
+        name: "employeeName",
+        choices: employees.map((e) => getFullName(e)),
+      },
+      {
+        type: "list",
+        message: "What is the role new Role of an employee?",
+        name: "role",
+        choices: () => roles.map((d) => d.title),
+      },
+    ])
+    .then((answers) => {
+      const role = roles.find(
+        (d) => d.title.toLowerCase() === answers.role.toLowerCase()
+      );
+      const employee = employees.find((d) => {
+        const name = getFullName(d);
+        return name.toLowerCase() === answers.employeeName.toLowerCase();
+      });
+      console.log(role);
+      console.log(employee)
+      svc.updateRole(
+        role.roleId,
+        employee.empId,
+        basicQuestions
+      );
+    });
+}
+
+function quit() {
+  console.log("Goodbye!");
+  process.exit();
+}
+
+console.log("---------------------------------------");
+console.log("          EMPLOYEE MANAGER             ");
+console.log("---------------------------------------");
 basicQuestions();
