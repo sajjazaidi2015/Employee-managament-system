@@ -7,12 +7,12 @@ Developers are often tasked with creating interfaces that make it easy for non-d
 
 # Live URL 
 
-
+https://sajjazaidi2015.github.io/Employee-managament-system/
 -----
 
 
 
 ## Demonstration 
 
-![Demonstration of Note Taker](./)
+![Demonstration of Employee Management System](./video/Demonstration.gif)
 

@@ -200,7 +200,7 @@ async function addEmployee() {
       });
 
       // Use user feedback for... whatever!!
-      addEmployee(
+      svc.addEmployee(
         answers.firstName,
         answers.lastName,
         role.roleId,
